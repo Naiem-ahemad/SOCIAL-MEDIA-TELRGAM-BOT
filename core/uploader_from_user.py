@@ -98,7 +98,6 @@ progress_lock = threading.Lock()
 async def upload_to_telegram_youtube(url, quality=None):
     """Download YouTube video → upload to Telegram with live progress."""
     await start_bot()
-    print("HELLO")
     progress = {"download": 0, "upload": 0}
     progress_lock = asyncio.Lock()
     upload_done = asyncio.Event()
