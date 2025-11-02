@@ -209,8 +209,6 @@ async def facebook_post_extracter(url):
         if not matchs:
             raise ValueError("Invalid FB post URL")
         
-        print(url)
-    
         for pattern in matchs:
             match = re.search(pattern, url)
             if match:
