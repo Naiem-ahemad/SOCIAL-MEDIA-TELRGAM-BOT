@@ -89,7 +89,7 @@ class GENERIC_HANDLER:
             raw_media_url = preferred.get("url")
             ext = preferred.get("ext") or "mp4"
             size = await get_content_length(raw_media_url)
-
+            
             if size < 50 * 1024 * 1024:
                 media_url = EXTRACTER.download_video_m3u8(raw_media_url)
             else:
