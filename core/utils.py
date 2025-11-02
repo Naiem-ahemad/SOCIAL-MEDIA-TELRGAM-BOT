@@ -394,7 +394,7 @@ class CookieManager:
             
             base_path = "./cookies"
         else:  # Linux/Ubuntu
-            base_path = "/home/ubuntu/bot/cookies"
+            base_path = "/home/ubuntu/tg-bot/bot/cookies"
 
         # Define all cookie paths you expect
         self.cookie_files = {

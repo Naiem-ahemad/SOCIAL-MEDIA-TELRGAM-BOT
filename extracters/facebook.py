@@ -200,10 +200,11 @@ async def facebook_post_extracter(url):
     async def dual_facebook_scrape(url):
 
         matchs = [
-        r"[?&]story_fbid=(pfbid\w+|\d+)",   # permalink.php?story_fbid=...
-        r"/posts/(pfbid\w+|\d+)",            # /posts/...
-        r"/photo\.php\?fbid=(pfbid\w+|\d+)", # /photo.php?fbid=...
-        r"/share/pfbid\w+",                  # /share/pfbid...
+            r"[?&]story_fbid=(pfbid\w+|\d+)",   # permalink.php?story_fbid=...
+            r"/posts/(pfbid\w+|\d+)",            # /posts/...
+            r"/photo\.php\?fbid=(pfbid\w+|\d+)", # /photo.php?fbid=...
+            r"/share/(pfbid\w+|\d+)",            # /share/pfbid...
+            r"/share/p/(pfbid\w+|\d+)",          # /share/p/...
         ]
 
         if not matchs:
@@ -213,9 +214,13 @@ async def facebook_post_extracter(url):
             match = re.search(pattern, url)
             if match:
                 pfbid = match.group(1)
-        
-        album_url = f"https://www.facebook.com/media/set/?set=pcb.{pfbid}"
+                break
 
+        if not pfbid:
+            raise ValueError(f"Invalid FB post URL: {url}")
+
+        album_url = f"https://www.facebook.com/media/set/?set=pcb.{pfbid}"
+        
         logger.debug("Album url found", platform=platform)
 
         async with async_playwright() as p:
