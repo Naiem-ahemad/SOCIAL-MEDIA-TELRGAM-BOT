@@ -115,14 +115,18 @@ class INSTAGRAM_HANDLER:
             return
 
         data = await INSTAGRAM_EXTRACTER.extract_instagram_auto(url)
-        type = data.get("type")
         print("DATA : " , data)
+        type = data.get("type")
 
         title = f"📸 {data.get("title")}"
         desc = data.get("description", "")
         likes = data.get("like_count",0)
         comments = data.get("comment_count",0)
-        caption = f"{title}\n\n📃 Description: {desc}[:1024]\n\n👍 : {format_view_count(likes)} likes \n\n💬 : {format_view_count(comments)} comments"
+        caption = (
+            f"{title}\n\n📃 Description: {(desc or '')[:1024]}"
+            f"\n\n👍 : {format_view_count(likes)} likes"
+            f"\n\n💬 : {format_view_count(comments)} comments"
+        )
         media_list = data.get("media", []) or None
                    
         try:

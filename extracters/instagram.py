@@ -300,6 +300,9 @@ class INSTAGRAM_EXTRACTER:
         """
         🧩 Automatically detect and parse Instagram Reel / Post / Carousel data.
         """
+        if "reels" in url:
+            url = url.replace("reels" , "reel")
+            
         html = await open_facebook_url_async(url)
         # Try reel first
         data = extract_instagram_reel_json_from_file(html)

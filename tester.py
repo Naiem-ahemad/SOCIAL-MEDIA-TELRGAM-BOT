@@ -12,7 +12,7 @@ TEST_URLS = [
     # Instagram
     "https://www.instagram.com/p/DQPKDWogDRE/?utm_source=ig_web_copy_link",
     "https://www.instagram.com/p/DQBdVm3jRQ1/?utm_source=ig_web_copy_link",
-    "https://www.instagram.com/reel/DQej50rkVBD/?utm_source=ig_web_copy_link",
+    "https://www.instagram.com/reels/DQej50rkVBD/?utm_source=ig_web_copy_link",
 
     # Facebook
     "https://www.facebook.com/share/p/1CkGt4wdAv/",
@@ -41,7 +41,6 @@ async def maybe_await(func, *args, **kwargs):
     if inspect.isawaitable(result):
         result = await result
     return result
-
 
 async def run_single_extractor(url: str):
     try:
@@ -77,7 +76,6 @@ async def run_single_extractor(url: str):
 
     except Exception as e:
         return {"status": f"❌ Error: {e}"}
-
 
 async def main():
     final_report = {}

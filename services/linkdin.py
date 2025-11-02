@@ -42,8 +42,8 @@ def build_telegram_caption(data):
             parts.append(f"📆 {posted_before}")
 
         if caption_text:
-            parts.append(caption_text)
-
+            parts.append(caption_text[:900])
+        
         stats = []
         if comments:
             stats.append(f"💬 {comments} comments")
@@ -133,27 +133,27 @@ class LINKEDIN_HANDLER:
                 buttons = InlineKeyboardMarkup([
                     [InlineKeyboardButton("⚡ Fast video Download", url=fast_url)]
                 ])
-                
+
                 await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.UPLOAD_VIDEO)
                 msg = await update.message.reply_video (
                     video=video_url,
                     reply_markup=buttons,
                     thumbnail=thumbnail_url,
                     caption=caption,
-                    has_spoiler=True
+                    has_spoiler=True,
+                    parse_mode="HTML"
                 )
                 try:
                     file_id = getattr(getattr(msg, 'video', None), 'file_id', None)
                     meta = {"media_url": raw_video_url, "title": filename, "caption": caption}
-                    # store using the original post URL (url) so cache lookups by post work
+                  
                     media_id = await asyncio.to_thread(db.add_media, platform, url, file_id, msg.message_id, user_id, filename, None, meta)
-                    # link download history
+     
                     try:
                         if media_id:
                             await asyncio.to_thread(db.add_download, user_id, media_id, 'completed')
                             await asyncio.to_thread(db.increment_download_count, user_id)
                     except Exception:
-                        # best-effort; ignore on failure
                         pass
                 except Exception:
                     logger.warning("db write failed after linkedin video send", platform=platform)
@@ -164,11 +164,12 @@ class LINKEDIN_HANDLER:
 
                 photo_url = media_urls[0]
                 msg = await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.UPLOAD_PHOTO)
-                # reply_photo returns a message, but we used send_chat_action above; call reply_photo on message
+                
                 sent = await update.message.reply_photo(
                     photo=photo_url,
                     has_spoiler=True,
-                    caption=caption
+                    caption=caption,
+                    parse_mode="HTML"
                 )
                 try:
                     file_id = getattr(sent.photo[-1], 'file_id', None) if getattr(sent, 'photo', None) else None
@@ -203,9 +204,9 @@ class LINKEDIN_HANDLER:
                         await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.UPLOAD_PHOTO)
 
                         if len(group) > 1:
-                            await update.message.reply_media_group(group , caption=caption)
+                            await update.message.reply_media_group(group , caption=caption , parse_mode="HTML")
                         else:
-                            await update.message.reply_photo(photo=group[0].media , caption=caption)
+                            await update.message.reply_photo(photo=group[0].media , caption=caption , parse_mode="HTML")
 
         except Exception as e:
 

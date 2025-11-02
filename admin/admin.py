@@ -7,11 +7,10 @@ import google.generativeai as genai
 
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-ADMIN_IDS = [7840020962] 
+ADMIN_IDS = [7840020962 , 8171073940] 
 
 async def is_admin(user_id: int):
     return user_id in ADMIN_IDS
-
 
 # ------------------ MAIN ADMIN MENU ------------------ #
 async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, from_callback=False):
@@ -35,7 +34,7 @@ async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, from_ca
     ]
 
     text = (
-        f"👋 <b>Welcome, {full_name}!</b>\n"
+        f"👋 <b>Welcome, {full_name}!</b>\n\n"
         f"You're in the <b>Admin Control Panel</b>.\n\n"
         f"Use the options below to manage the bot:"
     )
@@ -52,18 +51,17 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_downloads = db.get_total_downloads()
     top_users = db.get_top_users()
 
-    top_str = "\n".join([f"• {u[0] or 'N/A'} — {u[1]} downloads" for u in top_users]) or "No data"
+    top_str = "\n\n".join([f"• {u[0] or 'N/A'} — {u[1]} downloads" for u in top_users]) or "No data"
 
     text = (
         f"<b>📊 Stats</b>\n\n"
         f"👥 Total Users: <b>{total_users}</b>\n\n"
         f"⬇️ Total Downloads: <b>{total_downloads}</b>\n\n"
-        f"🏆 <b>Top Users:</b>\n\n{top_str}"
+        f"🏆 <b>Top Users:</b>\n\n{top_str}\n\n"
     )
 
     keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_back")]]
     await update.callback_query.message.edit_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
-
 
 # ------------------ USERS ------------------ #
 async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,7 +73,6 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_back")]]
     await update.callback_query.message.edit_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
-
 # ------------------ MEDIA ------------------ #
 async def admin_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     media = db.get_all_media()[:10]
@@ -86,13 +83,11 @@ async def admin_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="admin_back")]]
     await update.callback_query.message.edit_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
-
 async def admin_broadcast(update, context):
     query = update.callback_query
     await query.message.edit_text("✏️ Send the broadcast message:")
     context.user_data["awaiting_broadcast"] = True
     context.user_data["temp_msgs"] = [query.message.message_id]
-
 
 async def handle_broadcast(update, context):
     if not context.user_data.get("awaiting_broadcast"):
@@ -150,7 +145,6 @@ async def ai_edit_broadcast(update, context):
     --- End ---
     """
 
-
     model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)
     improved = response.text.strip()
@@ -168,7 +162,6 @@ async def ai_edit_broadcast(update, context):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     context.user_data["temp_msgs"].append(msg.message_id)
-
 
 # ------------------ SEND FINAL ------------------ #
 async def ai_send_broadcast(update, context, use_ai=False):
@@ -209,7 +202,7 @@ async def ai_callback(update, context):
         return await ai_send_broadcast(update, context, use_ai=True)
     elif data == "ai_send_original":
         return await ai_send_broadcast(update, context, use_ai=False)
-    
+
 # ------------------ CALLBACK ROUTER ------------------ #
 async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

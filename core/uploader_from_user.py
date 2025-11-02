@@ -3,18 +3,17 @@ import aiohttp
 import subprocess
 from pyrogram import Client
 from tempfile import NamedTemporaryFile
-from core.utils import EXTRACTER, logger
+from core.utils import EXTRACTER, logger , CookieManager
 from dotenv import load_dotenv
 from yt_dlp import YoutubeDL
-import uuid
 load_dotenv()
 
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL = "void_downloader"
-
-platform = "BOT API"
+CHANNEL = "@data_base1001"
+cookies_manager = CookieManager()
+platform = "BOT_API"
 
 def get_video_dimensions(path):
 
@@ -55,6 +54,8 @@ async def upload_to_telegram(url, width=None, height=None):
 
         if not width or not height:
             width, height = get_video_dimensions(tmp_path)
+
+        await app.get_chat(CHANNEL)
 
         logger.debug(f"Uploading {tmp_path} ({width}x{height})", platform=platform)
         
@@ -97,12 +98,13 @@ progress_lock = threading.Lock()
 async def upload_to_telegram_youtube(url, quality=None):
     """Download YouTube video → upload to Telegram with live progress."""
     await start_bot()
-
+    print("HELLO")
     progress = {"download": 0, "upload": 0}
     progress_lock = asyncio.Lock()
     upload_done = asyncio.Event()
     tmp_path_holder = {"path": None}
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
+
 
     # --- Progress Update Helper ---
     async def _update_progress(key, value):
@@ -146,6 +148,7 @@ async def upload_to_telegram_youtube(url, quality=None):
             "quiet": True,
             "no_warnings": True,
             "progress_hooks": [download_hook],
+            "cookiefile":cookies_manager.get_youtube_cookie()
         }
 
         try:
@@ -193,13 +196,18 @@ async def upload_to_telegram_youtube(url, quality=None):
 
 
         width, height = get_video_dimensions(tmp_path)
-        
+        print(width , height)
         if height < 360 or width < 640:
             aspect_ratio = width / height if height != 0 else 1
             new_width = 720
             new_height = int(new_width / aspect_ratio)
             width, height = new_width, new_height
-            
+        
+        try:
+            await app.get_chat(CHANNEL)
+        except Exception as e:
+            logger.warning(f"Cannot meet channel: {e}")
+        
         # --- Upload phase ---
         send_task = asyncio.create_task(
             app.send_video(

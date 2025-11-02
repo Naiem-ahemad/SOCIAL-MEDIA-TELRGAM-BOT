@@ -20,7 +20,6 @@ import subprocess
 import gallery_dl
 from pathlib import Path
 from functools import wraps
-from collections import deque, defaultdict
 from typing import Any, Optional
 from cryptography.fernet import Fernet
 from datetime import datetime , timedelta
@@ -193,7 +192,7 @@ class Database:
             except Exception:
                 data["metadata"] = {}
         return data
-
+    
     def get_media_by_url(self, url):
         """Fetch media by URL"""
         self.cur.execute("SELECT * FROM media WHERE url=?", (url,))

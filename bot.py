@@ -29,7 +29,9 @@ API_KEY = os.getenv("API_KEY")
 # -------------------- START COMMAND --------------------
 @run_in_background
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
+    chat = update.effective_chat
+    print("Chat ID:", chat.id)
+    print("Chat Type:", chat.type)
     chat_id = update.effective_chat.id
     user = update.effective_user
     user_id = update.effective_user.id
@@ -174,48 +176,47 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=chat_id, text=help_text, parse_mode="HTML", reply_markup=keyboard)
         
 def main():
-    # WEBHOOK_URL = "https://bot.zer0spectrum.dpdns.org"  # your domain
-    # PORT = 8002  # port your bot listens on
+    # --- Webhook / Bot Setup ---
+    # WEBHOOK_URL = "https://bot.zer0spectrum.dpdns.org"
+    # PORT = 8002
     app = Application.builder().token(TOKEN).build()
-    
-    # Filters
+
+    # --- Filters ---
     INSTAGRAM_FILTER = filters.TEXT & filters.Regex(r"(instagram\.com|instagr\.am)")
-    TWITTER_FILTER = filters.TEXT & filters.Regex(r"(twitter\.com|x\.com)")
-    LINKDIN_FILTER = filters.TEXT & filters.Regex(r"(linkedin\.com)")
-    URL_FILTER = filters.TEXT & filters.Regex(r"https?://")
-    GENRIC_FILTER = filters.TEXT & filters.Regex(r"https?://")
-    ANIME_TEXT_FILTER = filters.TEXT & ~filters.COMMAND & ~INSTAGRAM_FILTER  & ~URL_FILTER
-    FACEBOOK_FILTER = filters.TEXT & filters.Regex(r"(facebook\.com|fb\.watch)")
+    TWITTER_FILTER   = filters.TEXT & filters.Regex(r"(twitter\.com|x\.com)")
+    FACEBOOK_FILTER  = filters.TEXT & filters.Regex(r"(facebook\.com|fb\.watch)")
     PINTEREST_FILTER = filters.TEXT & filters.Regex(r"(pinterest\.com|pin\.it)")
-    SPOTIFY_FILTER = filters.TEXT & filters.Regex(
+    LINKDIN_FILTER   = filters.TEXT & filters.Regex(r"(linkedin\.com)")
+    SPOTIFY_FILTER   = filters.TEXT & filters.Regex(
         r"https?://(?:www\.)?(?:{})/.*".format("|".join(map(re.escape, SPOTIFY_DOMAIN)))
     )
+    YOUTUBE_FILTER   = filters.TEXT & filters.Regex(r"(youtube\.com|youtu\.be)")
+    GENRIC_FILTER    = filters.TEXT & filters.Regex(r"https?://")
 
-    # Command handlers
+    # --- Command Handlers ---
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("terms", start))  # same as /start
-    
-    # CallbackQuery handlers (ORDER MATTERS - specific patterns first!)
+    app.add_handler(CommandHandler("terms", start))
     app.add_handler(CommandHandler("admin", admin_menu))
+
+    # --- Callback Query Handlers (Specific → Generic) ---
     app.add_handler(CallbackQueryHandler(ai_callback, pattern="^(ai_edit|ai_send|ai_send_original)$"))
     app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
     app.add_handler(CallbackQueryHandler(terms_handler, pattern="^(open_terms|terms_yes|terms_no)$"))
-    # Generic button handler should be LAST to catch remaining callbacks
-    app.add_handler(CallbackQueryHandler(YOUTUBE_HANDLER.button_handler))
-    
-    # Message handlers
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast))  
-    app.add_handler(MessageHandler(PINTEREST_FILTER, PINTEREST_HANDLER.handle_pinterest_url))
-    app.add_handler(MessageHandler(GENRIC_FILTER, GENERIC_HANDLER.handle_generic_url))
-    app.add_handler(MessageHandler(SPOTIFY_FILTER, SPOTIFY_HANDLER.handle_spotify_url))
-    app.add_handler(MessageHandler(LINKDIN_FILTER,LINKEDIN_HANDLER.handle_linkdin_url))
+    app.add_handler(CallbackQueryHandler(YOUTUBE_HANDLER.button_handler))  # generic button handler last
+
+    # --- Message Handlers (Most specific → Generic) ---
     app.add_handler(MessageHandler(INSTAGRAM_FILTER, INSTAGRAM_HANDLER.handle_instagram_url))
     app.add_handler(MessageHandler(TWITTER_FILTER, TWITTER_HANDLER.handle_twitter_url))
     app.add_handler(MessageHandler(FACEBOOK_FILTER, FACEBOOK_HANDLER.handle_facebook_url))
-    app.add_handler(MessageHandler(URL_FILTER, YOUTUBE_HANDLER.handle_youtube_url))\
-    # Add anime text handler if you want to handle anime search via text messages
-    # app.add_handler(MessageHandler(ANIME_TEXT_FILTER, handle_anime_text))
+    app.add_handler(MessageHandler(PINTEREST_FILTER, PINTEREST_HANDLER.handle_pinterest_url))
+    app.add_handler(MessageHandler(LINKDIN_FILTER, LINKEDIN_HANDLER.handle_linkdin_url))
+    app.add_handler(MessageHandler(SPOTIFY_FILTER, SPOTIFY_HANDLER.handle_spotify_url))
+    app.add_handler(MessageHandler(YOUTUBE_FILTER, YOUTUBE_HANDLER.handle_youtube_url))
+    app.add_handler(MessageHandler(GENRIC_FILTER, GENERIC_HANDLER.handle_generic_url))
+    
+    # --- Broadcast Texts (must be last to not block URL handlers) ---
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast))
 
     logger.info("BOT STARTED")
     app.run_polling()
