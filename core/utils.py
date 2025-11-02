@@ -405,8 +405,8 @@ class CookieManager:
             ],
             "x": os.path.join(base_path, "x.txt"),
             "youtube": os.path.join(base_path, "yt1.txt"),
-        }
-
+        }   
+        
         # Validate and create cycles for multi-cookie platforms
         self.available_instagram_cookies = [
             p for p in self.cookie_files["instagram"] if Path(p).exists()
