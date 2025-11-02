@@ -207,6 +207,8 @@ async def facebook_post_extracter(url):
             r"/share/p/(pfbid\w+|\d+)",          # /share/p/...
         ]
 
+        pfbid = None  # <— important initialization
+        
         if not matchs:
             raise ValueError("Invalid FB post URL")
         
