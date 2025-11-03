@@ -7,10 +7,8 @@ import time
 import hashlib
 
 cookies_manager = CookieManager()
-
 def fetch_youtube_metadata(video_url_or_id, cookies_path=cookies_manager.get_youtube_cookie()):
     
-    print("VIDEO ID : " , video_url_or_id)
     """
     Fetch YouTube video metadata with formats
     
@@ -34,7 +32,9 @@ def fetch_youtube_metadata(video_url_or_id, cookies_path=cookies_manager.get_you
     # Load cookies if provided
     if cookies_path:
         _load_cookies(session, cookies_path)
-    
+    else:
+        logger.warning("No cookies Found..." , platform="Youtube")
+
     # Fetch metadata
     metadata = _fetch_metadata(session, video_id)
     print("METADATA : " , metadata)
