@@ -5,6 +5,7 @@ from .pinterest import PINTEREST_HANDLER
 from .spotify import SPOTIFY_HANDLER
 from .youtube import YOUTUBE_HANDLER
 from .genric import GENERIC_HANDLER
+from .searcher import inline_search
 
 all = [
     YOUTUBE_HANDLER,
@@ -14,5 +15,6 @@ all = [
     INSTAGRAM_HANDLER,
     TWITTER_HANDLER,
     FACEBOOK_HANDLER,
-    GENERIC_HANDLER
+    GENERIC_HANDLER,
+    inline_search
 ]

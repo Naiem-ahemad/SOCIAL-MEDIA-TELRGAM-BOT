@@ -92,6 +92,7 @@ class YOUTUBE_HANDLER:
         if not allowed:
             await update.message.reply_text(f"⛔ You are temporarily banned: {reason}")
             return
+        
         await context.bot.set_message_reaction(update.effective_chat.id, update.message.message_id, ["🗿"])
         status_msg = await update.message.reply_text("👾")
 
@@ -161,7 +162,7 @@ class YOUTUBE_HANDLER:
             else:
 
                 data = fetch_youtube_metadata(url)
-                logger.debug(f"Data : {data}" , platform)
+                logger.debug(f"Data : {len(data)}" , platform)
                 if not data:
                     await status_msg.edit_text("⚠️ Failed to fetch metadata.")
                     return

@@ -8,7 +8,8 @@ from telegram.ext import (
     MessageHandler,
     CallbackQueryHandler,
     filters,
-    ContextTypes)
+    ContextTypes,
+    InlineQueryHandler)
 from core.utils import run_in_background
 from services.spotify import SPOTIFY_DOMAIN
 from core.utils import logger , db
@@ -20,7 +21,8 @@ from services import (
     FACEBOOK_HANDLER,
     LINKEDIN_HANDLER,
     PINTEREST_HANDLER,
-    GENERIC_HANDLER)
+    GENERIC_HANDLER,
+    inline_search)
 from admin.admin import admin_menu , admin_callback , handle_broadcast , ai_callback
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -214,7 +216,7 @@ def main():
     app.add_handler(MessageHandler(SPOTIFY_FILTER, SPOTIFY_HANDLER.handle_spotify_url))
     app.add_handler(MessageHandler(YOUTUBE_FILTER, YOUTUBE_HANDLER.handle_youtube_url))
     app.add_handler(MessageHandler(GENRIC_FILTER, GENERIC_HANDLER.handle_generic_url))
-    
+    app.add_handler(InlineQueryHandler(inline_search))
     # --- Broadcast Texts (must be last to not block URL handlers) ---
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast))
 
