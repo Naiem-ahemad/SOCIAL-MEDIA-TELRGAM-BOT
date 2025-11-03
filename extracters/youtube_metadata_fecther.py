@@ -7,8 +7,11 @@ import time
 import hashlib
 
 cookies_manager = CookieManager()
-def fetch_youtube_metadata(video_url_or_id, cookies_path=cookies_manager.get_youtube_cookie()):
-    
+cookies_path = cookies_manager.get_youtube_cookie()
+cookies_path = cookies_path.replace("yt1.txt" , "yt.txt")
+
+def fetch_youtube_metadata(video_url_or_id, cookies_path=cookies_path):
+
     """
     Fetch YouTube video metadata with formats
     
@@ -19,6 +22,7 @@ def fetch_youtube_metadata(video_url_or_id, cookies_path=cookies_manager.get_you
     Returns:
         dict: Metadata including formats, or error dict if failed
     """
+    
     # Extract video ID from URL if needed
     video_id = _extract_video_id(video_url_or_id)
 
