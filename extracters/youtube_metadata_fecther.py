@@ -8,7 +8,12 @@ import hashlib
 
 cookies_manager = CookieManager()
 cookies_path = cookies_manager.get_youtube_cookie()
-cookies_path = cookies_path.replace("yt1.txt" , "yt.txt")
+
+if cookies_path.name == "yt1.txt":
+    cookies_path = cookies_path.with_name("yt.txt")
+
+if not cookies_path.exists():
+    cookies_path = cookies_manager.get_youtube_cookie()
 
 def fetch_youtube_metadata(video_url_or_id, cookies_path=cookies_path):
 
@@ -36,6 +41,7 @@ def fetch_youtube_metadata(video_url_or_id, cookies_path=cookies_path):
     # Load cookies if provided
     if cookies_path:
         _load_cookies(session, cookies_path)
+
     else:
         logger.warning("No cookies Found..." , platform="Youtube")
 
@@ -71,6 +77,7 @@ def _load_cookies(session, cookie_file):
         for cookie in cookie_jar:
             session.cookies.set_cookie(cookie)
     except Exception as e:
+
         logger.warning(f"_load_cookies: cookiejar load failed: {e}", platform="YTFETCH")
         # Try manual parsing
         try:

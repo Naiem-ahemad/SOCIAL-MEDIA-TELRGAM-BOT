@@ -1,4 +1,4 @@
-import requests, re, json, urllib.parse, random
+import requests, re, json, urllib.parse, random , time
 from telegram import InlineQueryResultArticle, InputTextMessageContent
 from uuid import uuid4
 from core.utils import logger
@@ -110,6 +110,10 @@ async def inline_search(update, context):
     if not query:
         logger.warning("⚠️ Empty query", platform=platform)
         return
+    
+    if "pin" in query.lower():
+        logger.debug("Skipping YouTube search for Pinterest query", platform=platform)
+        return
 
     videos = youtube_search_stable(query, limit=50)
     if not videos:
@@ -133,3 +137,94 @@ async def inline_search(update, context):
     await update.inline_query.answer(results, cache_time=0, is_personal=True)
     logger.info(f"✅ Sent {len(results)} results to Telegram", platform=platform)
     
+
+def pinterest_guest_session():
+    r = requests.get("https://www.pinterest.com/", headers={"User-Agent": "Mozilla/5.0"})
+    cookies = r.cookies.get_dict()
+    return cookies, cookies.get("csrftoken")
+
+def pinterest_api_search(query, pages=2, page_size=50):
+
+    cookies, csrf = pinterest_guest_session()
+    url = "https://www.pinterest.com/resource/BaseSearchResource/get/"
+    headers = {
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "content-type": "application/x-www-form-urlencoded",
+        "origin": "https://www.pinterest.com",
+        "referer": "https://www.pinterest.com/",
+        "user-agent": "Mozilla/5.0",
+        "x-csrftoken": csrf,
+    }
+    sess_cookies = {"_pinterest_sess": cookies.get("_pinterest_sess"), "csrftoken": csrf}
+
+    results, bookmark = [], None
+    
+    for _ in range(pages):
+
+        payload = {
+            "source_url": f"/search/pins/?q={query}&rs=typed",
+            "data": json.dumps({
+                "options": {
+                    "query": query,
+                    "scope": "pins",
+                    "page_size": page_size,
+                    "bookmarks": [bookmark] if bookmark else [],
+                },
+                "context": {},
+            }),
+        }
+
+        r = requests.post(url, headers=headers, cookies=sess_cookies, data=payload)
+        r.raise_for_status()
+        j = r.json()
+
+        for pin in j["resource_response"]["data"]["results"]:
+            pinner = pin.get("pinner", {})
+            board = pin.get("board", {})
+            owner = board.get("owner", {})
+            pin_count = board.get("pin_count")
+            follower_count = owner.get("follower_count")
+            reactions = pin.get("reaction_counts", {})
+            img = pin["images"]["orig"]["url"]
+            link = f"https://www.pinterest.com/pin/{pin['id']}/"
+            title = pin.get("auto_alt_text") or pin.get("seo_alt_text")
+            results.append({"title": title, "image": img, "link": link , "pinner": pinner.get("full_name"), "board": board.get("name"), "pin_count": pin_count, "follower_count": follower_count, "reactions": reactions})
+
+        bookmark = j["resource_response"]["data"].get("bookmark")
+        if not bookmark:
+            break
+        time.sleep(1)
+
+    return results
+
+async def inline_query_pin(update, context):
+
+    query = update.inline_query.query.strip()
+    logger.debug(f"[INLINE] Pinterest query received: '{query}'", platform=platform)
+
+    if not query:
+        await update.inline_query.answer([], switch_pm_text="Search Pinterest 🔍", switch_pm_parameter="start")
+        return
+
+    pins = pinterest_api_search(query)
+    if not pins:
+        await update.inline_query.answer([], switch_pm_text="No results found ❌", switch_pm_parameter="none")
+        return
+
+    results = [
+        InlineQueryResultArticle(
+            id=str(uuid4()),
+            title=p["title"] or "Untitled Pin",
+            description=f"❤️ {p.get('reactions', {}).get('1', 0)} | 📌 {p.get('pin_count', 0)} | 👥 {p.get('follower_count', 0)}",
+            thumbnail_url=p.get("image"),
+            input_message_content=InputTextMessageContent(
+                f"📌 <b>{p['title'] or 'Pinterest Pin'}</b>\n"
+                f"❤️ {p.get('reactions', {}).get('1', 0)}   📌 {p.get('pin_count', 0)}   👥 {p.get('follower_count', 0)}\n"
+                f"🔗 {p['link']}",
+                parse_mode="HTML"
+            ),
+        )
+        for p in pins
+    ]
+
+    await update.inline_query.answer(results, cache_time=0)

@@ -137,7 +137,7 @@ class FACEBOOK_HANDLER:
                         description = description[:1024]
                     caption = (
                         f"{title}\n\n"
-                        f"📜 Description (original):\n{description}\n\n\n"
+                        f"<blockquote>📜 Description (original):\n{description}\n\n\n</blockquote>"
                         "⚠️ Note: The above description and any links were written by the original post author — "
                         "we do not endorse or add any external content."
                     )
@@ -213,7 +213,7 @@ class FACEBOOK_HANDLER:
 
                 caption = (
                     f"{title}\n\n"
-                    f"📜 Description (original):\n{desc[:1024]}\n\n"
+                    f"<blockquote>📜 Description (original):\n{desc[:1024]}\n\n</blockquote>"
                     f"👍 Likes: {likes_count}\n"
                     f"💬 Shares: {share_count}\n\n"
                     "⚠️ Note: The above description and any links were written by the original post author — "
@@ -229,6 +229,7 @@ class FACEBOOK_HANDLER:
                     await update.message.reply_photo(
                         photos[0]["url"],
                         caption=caption,
+                        parse_mode="HTML"
                     )
 
                 else:
@@ -239,7 +240,7 @@ class FACEBOOK_HANDLER:
                     
                     caption = (
                         f"{title}\n\n"
-                        f"📜 Description (original):\n{desc[:1024]}\n\n"
+                        f"<blockquote>📜 Description (original):\n{desc[:1024]}\n\n</blockquote>"
                         f"👍 Likes: {likes_count}\n"
                         f"💬 Shares: {share_count}\n\n"
                         "⚠️ Note: The above description and any links were written by the original post author — "

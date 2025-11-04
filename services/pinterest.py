@@ -2,7 +2,7 @@ from telegram.constants import ChatAction
 from telegram import Update
 from telegram.ext import ContextTypes
 from core.utils import run_in_background, logger, db
-import asyncio
+import asyncio , re
 from core.rate_limiter import check_and_record_user_activity
 from extracters.pinterest import pinterest_extracter
 
@@ -77,10 +77,21 @@ class PINTEREST_HANDLER:
     @run_in_background
     async def handle_pinterest_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler for Pinterest links: extract and send video or photo posts."""
-        url = update.message.text.strip()
 
+        text = update.message.text.strip()
+        match = re.search(r"https?://(?:www\.)?pinterest\.com/pin/\d+/?", text)
+        url = match.group(0) if match else text
         if not is_pinterest_url(url):
             return
+
+        logger.debug(f"handle_pinterest_url received: {url}", platform=platform)
+        
+        if not is_pinterest_url(url):
+            return
+        
+        url_parser = url
+
+        logger.debug(f"handle_pinterest_url received: {url_parser}", platform=platform)
 
         # record user + rate-limit
         user = update.effective_user or getattr(update.message, "from_user", None)
@@ -141,6 +152,7 @@ class PINTEREST_HANDLER:
                     message_id=msg_id,
                     text=f"⚠️ Unsupported or unavailable URL:\n{url}"
                 )
+
                 logger.debug("Unsupported or empty pinterest url", platform=platform)
                 return
 

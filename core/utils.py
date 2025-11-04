@@ -358,7 +358,6 @@ class Database:
     
 db = Database()
 
-
 async def record_media_and_download(user_id: int, post_url: str, media_url: str, file_id: str, msg_id: int, platform: str, title: str | None = None, duration: str | None = None, metadata: dict | None = None, status: str = "completed") -> int | None:
     """Helper to persist media and download records safely from async code.
 

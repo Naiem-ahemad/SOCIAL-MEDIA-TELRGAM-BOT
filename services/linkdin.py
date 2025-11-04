@@ -42,7 +42,7 @@ def build_telegram_caption(data):
             parts.append(f"📆 {posted_before}")
 
         if caption_text:
-            parts.append(caption_text[:900])
+            parts.append(f"<blockquote>{caption_text[:900]}</blockquote>")
         
         stats = []
         if comments:
@@ -84,7 +84,9 @@ class LINKEDIN_HANDLER:
         if not is_linkdin_url(url):
             return
 
+        # set a big reaction on the original user message
         status_msg = await update.message.reply_text("👾")
+
         msg_id = status_msg.message_id
         chat_id = status_msg.chat_id
 

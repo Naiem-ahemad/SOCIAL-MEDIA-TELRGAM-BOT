@@ -1,7 +1,7 @@
 # bot.py
 import os , re 
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup , LabeledPrice
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -9,7 +9,8 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters,
     ContextTypes,
-    InlineQueryHandler)
+    InlineQueryHandler,
+    PreCheckoutQueryHandler,)
 from core.utils import run_in_background
 from services.spotify import SPOTIFY_DOMAIN
 from core.utils import logger , db
@@ -22,7 +23,9 @@ from services import (
     LINKEDIN_HANDLER,
     PINTEREST_HANDLER,
     GENERIC_HANDLER,
-    inline_search)
+    inline_search,
+    inline_query_pin)
+
 from admin.admin import admin_menu , admin_callback , handle_broadcast , ai_callback
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -176,7 +179,61 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.edit_message_text(help_text, parse_mode="HTML", reply_markup=keyboard)
     else:
         await context.bot.send_message(chat_id=chat_id, text=help_text, parse_mode="HTML", reply_markup=keyboard)
-        
+
+
+async def supported_urls(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = """
+             🌍 <b>Supported Platforms</b>
+
+    🎬 <b>YouTube</b> — Videos, Shorts, and Audio\n
+    📸 <b>Instagram</b> — Reels, Posts, and Stories\n
+    📘 <b>Facebook</b> — Videos & Reels\n
+    🐦 <b>Twitter / X</b> — Tweets with media\n
+    💬 <b>Linkedin</b> — Posts & videos\n
+    🎧 <b>Spotify</b> — Tracks and playlists\n
+    📌 <b>Pinterest</b> — Image & video pins\n
+    
+    All downloads include automatic thumbnail detection, \nsmart captioning, and multiple quality options for stream or download.\n\n
+    We plan to add more platforms soon!
+    """
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📦 View Source Code", url="https://github.com/Naiem-ahemad/SOCIAL-MEDIA-TELRGAM-BOT")]
+    ])
+
+    await update.message.reply_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=keyboard,
+        disable_web_page_preview=True
+    )
+
+async def buy(update, context):
+    title = "Premium Access"
+    description = "Get access to premium bot features"
+    payload = "stars-payment"
+    currency = "XTR"  # Required for Telegram Stars
+    prices = [LabeledPrice("Premium Plan", 100)]  # 100 Stars
+
+    await update.message.reply_invoice(
+        title=title,
+        description=description,
+        payload=payload,
+        provider_token="",  # leave empty for Stars
+        currency=currency,
+        prices=prices,
+        start_parameter="test-stars",
+    )
+
+async def precheckout(update, context):
+    query = update.pre_checkout_query
+    await query.answer(ok=True)
+
+async def successful_payment(update, context):
+    amount = update.message.successful_payment.total_amount
+    await update.message.reply_text(f"✅ Payment successful! You paid {amount} ⭐")
+
+
 def main():
     # --- Webhook / Bot Setup ---
     # WEBHOOK_URL = "https://bot.zer0spectrum.dpdns.org"
@@ -199,7 +256,10 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("terms", start))
+    app.add_handler(CommandHandler("supported", supported_urls))
     app.add_handler(CommandHandler("admin", admin_menu))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(PreCheckoutQueryHandler(precheckout))
 
     # --- Callback Query Handlers (Specific → Generic) ---
     app.add_handler(CallbackQueryHandler(ai_callback, pattern="^(ai_edit|ai_send|ai_send_original)$"))
@@ -215,9 +275,11 @@ def main():
     app.add_handler(MessageHandler(LINKDIN_FILTER, LINKEDIN_HANDLER.handle_linkdin_url))
     app.add_handler(MessageHandler(SPOTIFY_FILTER, SPOTIFY_HANDLER.handle_spotify_url))
     app.add_handler(MessageHandler(YOUTUBE_FILTER, YOUTUBE_HANDLER.handle_youtube_url))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast))
     app.add_handler(MessageHandler(GENRIC_FILTER, GENERIC_HANDLER.handle_generic_url))
-    app.add_handler(InlineQueryHandler(inline_search))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast))
+    app.add_handler(InlineQueryHandler(inline_search, pattern=r"^(?!pin ).*"))
+    app.add_handler(InlineQueryHandler(inline_query_pin, pattern=r"^pin "))
+    
     # --- Broadcast Texts (must be last to not block URL handlers) ---
 
     logger.info("BOT STARTED")
