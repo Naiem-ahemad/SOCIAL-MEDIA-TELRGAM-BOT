@@ -143,8 +143,7 @@ def pinterest_guest_session():
     cookies = r.cookies.get_dict()
     return cookies, cookies.get("csrftoken")
 
-def pinterest_api_search(query, pages=2, page_size=50):
-
+def pinterest_api_search(query, pages=1, page_size=50):
     cookies, csrf = pinterest_guest_session()
     url = "https://www.pinterest.com/resource/BaseSearchResource/get/"
     headers = {
@@ -158,9 +157,7 @@ def pinterest_api_search(query, pages=2, page_size=50):
     sess_cookies = {"_pinterest_sess": cookies.get("_pinterest_sess"), "csrftoken": csrf}
 
     results, bookmark = [], None
-    
     for _ in range(pages):
-
         payload = {
             "source_url": f"/search/pins/?q={query}&rs=typed",
             "data": json.dumps({
@@ -173,7 +170,6 @@ def pinterest_api_search(query, pages=2, page_size=50):
                 "context": {},
             }),
         }
-
         r = requests.post(url, headers=headers, cookies=sess_cookies, data=payload)
         r.raise_for_status()
         j = r.json()
@@ -188,7 +184,7 @@ def pinterest_api_search(query, pages=2, page_size=50):
             img = pin["images"]["orig"]["url"]
             link = f"https://www.pinterest.com/pin/{pin['id']}/"
             title = pin.get("auto_alt_text") or pin.get("seo_alt_text")
-            results.append({"title": title, "image": img, "link": link , "pinner": pinner.get("full_name"), "board": board.get("name"), "pin_count": pin_count, "follower_count": follower_count, "reactions": reactions})
+            results.append({"title": title, "image": img, "link": link , "pinner": pinner.get("full_name"), "board": board.get("name"), "pin_count": pin_count, "follower_count": follower_count, "reactions": reactions.get("1")})
 
         bookmark = j["resource_response"]["data"].get("bookmark")
         if not bookmark:
@@ -215,11 +211,11 @@ async def inline_query_pin(update, context):
         InlineQueryResultArticle(
             id=str(uuid4()),
             title=p["title"] or "Untitled Pin",
-            description=f"❤️ {p.get('reactions', {}).get('1', 0)} | 📌 {p.get('pin_count', 0)} | 👥 {p.get('follower_count', 0)}",
+            description=f"❤️ {p.get('reactions')} | 📌 {p.get('pin_count', 0)} | 👥 {p.get('follower_count', 0)}",
             thumbnail_url=p.get("image"),
             input_message_content=InputTextMessageContent(
                 f"📌 <b>{p['title'] or 'Pinterest Pin'}</b>\n"
-                f"❤️ {p.get('reactions', {}).get('1', 0)}   📌 {p.get('pin_count', 0)}   👥 {p.get('follower_count', 0)}\n"
+                f"❤️ {p.get('reactions')} 📌 {p.get('pin_count', 0)}   👥 {p.get('follower_count', 0)}\n"
                 f"🔗 {p['link']}",
                 parse_mode="HTML"
             ),
