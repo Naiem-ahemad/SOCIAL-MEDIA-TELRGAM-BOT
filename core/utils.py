@@ -298,6 +298,10 @@ class Database:
         self.cur.execute("SELECT COUNT(*) FROM downloads")
         return self.cur.fetchone()[0]
 
+    def get_banned_users(self):
+        self.cur.execute("SELECT COUNT(*) FROM users WHERE banned=1")
+        return self.cur.fetchone()[0]
+    
     def get_top_users(self, limit=5):
         self.cur.execute("SELECT username, total_downloads FROM users ORDER BY total_downloads DESC LIMIT ?", (limit,))
         return self.cur.fetchall()

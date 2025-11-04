@@ -20,6 +20,7 @@ async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, from_ca
     if not await is_admin(user_id):
         text = "🚫 You are not authorized to access the admin panel."
         if from_callback:
+            await update.callback_query.answer()
             return await update.callback_query.message.edit_text(text)
         return await update.message.reply_text(text)
 
@@ -31,6 +32,7 @@ async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, from_ca
             InlineKeyboardButton("👥 Users", callback_data="admin_users"),
             InlineKeyboardButton("🎞 Media", callback_data="admin_media"),
         ],
+        [InlineKeyboardButton("🚫 Ban user", callback_data="ban_user")],
     ]
 
     text = (
@@ -41,7 +43,9 @@ async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, from_ca
     markup = InlineKeyboardMarkup(keyboard)
 
     if from_callback:
-        await update.callback_query.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+        query = update.callback_query
+        await query.answer()  # ✅ prevents invalid selection
+        await query.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
     else:
         await update.message.reply_text(text, parse_mode="HTML", reply_markup=markup)
 
@@ -50,12 +54,13 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_users = db.get_total_users()
     total_downloads = db.get_total_downloads()
     top_users = db.get_top_users()
-
+    
     top_str = "\n\n".join([f"• {u[0] or 'N/A'} — {u[1]} downloads" for u in top_users]) or "No data"
 
     text = (
         f"<b>📊 Stats</b>\n\n"
         f"👥 Total Users: <b>{total_users}</b>\n\n"
+        f"🚫 Banned Users: <b>{db.get_banned_users()}</b>\n\n"
         f"⬇️ Total Downloads: <b>{total_downloads}</b>\n\n"
         f"🏆 <b>Top Users:</b>\n\n{top_str}\n\n"
     )
@@ -203,11 +208,73 @@ async def ai_callback(update, context):
     elif data == "ai_send_original":
         return await ai_send_broadcast(update, context, use_ai=False)
 
+async def ban_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    total_users = db.get_total_users()
+    total_banned = db.get_banned_users()
+    users = db.get_all_users()
+
+    buttons = []
+    for u in users[:20]:  # show first 20 for simplicity
+        name = u["username"] or u["first_name"] or str(u["id"])
+        status = "🚫" if u["banned"] else "✅"
+        buttons.append([InlineKeyboardButton(f"{status} {name} ({u['id']})", callback_data=f"user_{u['id']}")])
+
+    buttons.append([InlineKeyboardButton("🔙 Back", callback_data="admin_back")])
+
+    caption = (
+        f"👥 <b>Ban Management</b>\n\n"
+        f"• Total users: <b>{total_users}</b>\n"
+        f"• Banned users: <b>{total_banned}</b>\n\n"
+        f"Select a user to manage:"
+    )
+
+    await query.edit_message_text(text=caption, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(buttons))
+
+async def ban_user_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    query = update.callback_query
+    user = db.get_user(user_id)
+    if not user:
+        return await query.answer("User not found!")
+
+    caption = (
+        f"👤 <b>User Info</b>\n\n"
+        f"🆔 ID: <code>{user['id']}</code>\n\n"
+        f"👤 Username: @{user['username']}\n\n"
+        f"💬 Name: {user['first_name']}\n\n"
+        f"📦 Plan: {user['plan']}\n\n"
+        f"📥 Total Downloads: {user['total_downloads']}\n\n"
+        f"🚫 Banned: {'✅ Yes' if user['banned'] else '❌ No'}\n\n"
+    )
+
+    button = InlineKeyboardButton("✅ Unban" if user["banned"] else "🚫 Ban", callback_data=f"toggleban_{user_id}")
+    back = InlineKeyboardButton("🔙 Back", callback_data="ban_user")
+    keyboard = InlineKeyboardMarkup([[button], [back]])
+
+    await query.edit_message_text(text=caption, parse_mode="HTML", reply_markup=keyboard)
+
+async def toggle_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    query = update.callback_query
+    user = db.get_user(user_id)
+
+    if not user:
+        return await query.answer("User not found!")
+
+    if user["banned"]:
+        db.unban_user(user_id)
+        await query.answer("✅ User unbanned")
+    else:
+        db.ban_user(user_id, reason="Manual ban by admin")
+        await query.answer("🚫 User banned")
+
+    await ban_user_detail(update, context, user_id)
+
 # ------------------ CALLBACK ROUTER ------------------ #
 async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()  # ✅ Prevents "Invalid selection"
     data = query.data
+    print("Query : " , query)
 
     if data == "admin_stats":
         return await admin_stats(update, context)
@@ -219,3 +286,11 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await admin_broadcast(update, context)
     elif data == "admin_back":
         return await admin_menu(update, context, from_callback=True)
+    elif data == "ban_user":
+        return await ban_menu(update, context)
+    elif data.startswith("user_"):
+        user_id = int(data.split("_")[1])
+        return await ban_user_detail(update, context, user_id)
+    elif data.startswith("toggleban_"):
+        user_id = int(data.split("_")[1])
+        return await toggle_ban_user(update, context, user_id)

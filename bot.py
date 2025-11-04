@@ -203,7 +203,7 @@ def main():
 
     # --- Callback Query Handlers (Specific → Generic) ---
     app.add_handler(CallbackQueryHandler(ai_callback, pattern="^(ai_edit|ai_send|ai_send_original)$"))
-    app.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
+    app.add_handler(CallbackQueryHandler(admin_callback, pattern="^(admin_|ban_|user_|toggleban_)"))
     app.add_handler(CallbackQueryHandler(terms_handler, pattern="^(open_terms|terms_yes|terms_no)$"))
     app.add_handler(CallbackQueryHandler(YOUTUBE_HANDLER.button_handler))  # generic button handler last
 
