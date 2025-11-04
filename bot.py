@@ -215,10 +215,10 @@ def main():
     app.add_handler(MessageHandler(LINKDIN_FILTER, LINKEDIN_HANDLER.handle_linkdin_url))
     app.add_handler(MessageHandler(SPOTIFY_FILTER, SPOTIFY_HANDLER.handle_spotify_url))
     app.add_handler(MessageHandler(YOUTUBE_FILTER, YOUTUBE_HANDLER.handle_youtube_url))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast))
     app.add_handler(MessageHandler(GENRIC_FILTER, GENERIC_HANDLER.handle_generic_url))
     app.add_handler(InlineQueryHandler(inline_search))
     # --- Broadcast Texts (must be last to not block URL handlers) ---
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast))
 
     logger.info("BOT STARTED")
     app.run_polling()

@@ -1,6 +1,5 @@
-import requests, re, json, urllib.parse, random, time
+import requests, re, json, urllib.parse, random
 from telegram import InlineQueryResultArticle, InputTextMessageContent
-from telegram.ext import Application, InlineQueryHandler
 from uuid import uuid4
 from core.utils import logger
 
@@ -50,18 +49,31 @@ def youtube_search_stable(query, limit=10):
                 vid = video["videoId"]
                 thumb = video["thumbnail"]["thumbnails"][-1]["url"]
 
-                # Extra details
                 channel = video.get("ownerText", {}).get("runs", [{}])[0].get("text", "Unknown")
                 views = video.get("viewCountText", {}).get("simpleText", "N/A")
                 published = video.get("publishedTimeText", {}).get("simpleText", "N/A")
 
+                # ✅ Accurate Shorts detection using commandMetadata
+                web_type = (
+                    video.get("navigationEndpoint", {})
+                         .get("commandMetadata", {})
+                         .get("webCommandMetadata", {})
+                         .get("webPageType", "")
+                )
+                is_shorts = web_type == "WEB_PAGE_TYPE_SHORTS"
+
+                if is_shorts:
+                    url = f"https://www.youtube.com/shorts/{vid}"
+                else:
+                    url = f"https://www.youtube.com/watch?v={vid}"
+
                 results.append({
                     "title": title,
-                    "video_id": vid,
+                    "video_url": url,
                     "thumb": thumb,
                     "channel": channel,
                     "views": views,
-                    "published": published
+                    "published": published,
                 })
 
                 if len(results) >= limit:
@@ -103,7 +115,7 @@ async def inline_search(update, context):
     if not videos:
         logger.warning("⚠️ No results to send back to Telegram", platform=platform)
         return
-
+    
     results = [
         InlineQueryResultArticle(
             id=str(uuid4()),
@@ -111,7 +123,7 @@ async def inline_search(update, context):
             description=f"{v['channel']} • {short_number(v['views'])} • {v['published']}",
             thumbnail_url=v["thumb"],
             input_message_content=InputTextMessageContent(
-                f"🎬 <b>{v['title']}</b>\n👤 {v['channel']}\n👁 {v['views']} • {v['published']}\n🔗 https://youtu.be/{v['video_id']}",
+                f"🎬 <b>{v['title']}</b>\n👤 {v['channel']}\n👁 {v['views']} • {v['published']}\n🔗 {v['video_url']}",
                 parse_mode="HTML"
             ),
         )

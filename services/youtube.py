@@ -23,6 +23,12 @@ platform = "youtube"
 
 COMMON_DOMAINS = ("youtube.com", "youtu.be")  # Add other generic sites here
 
+def normalize_youtube_url(url: str) -> str:
+    if "/shorts/" in url:
+        video_id = url.split("/shorts/")[1].split("?")[0].split("&")[0]
+        return f"https://www.youtube.com/watch?v={video_id}"
+    return url
+
 def make_progress_bar(progress: int, length: int = 15) -> str:
     """Create a nice progress bar for Telegram."""
     progress = max(0, min(100, int(progress)))
@@ -101,7 +107,9 @@ class YOUTUBE_HANDLER:
         try:
 
             if "/shorts/" in url:
+                url = normalize_youtube_url(url)
                 video_path , data = youtube_short_extracter(url)
+                logger.debug(f"SHORT DATA : {len(data)}" , platform)
                 await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.UPLOAD_VIDEO)
                 title = data.get("title", "Unknown")
                 thumbnail_url = data.get("thumbnail")
@@ -114,15 +122,6 @@ class YOUTUBE_HANDLER:
                     [InlineKeyboardButton("🎧 Download audio", callback_data=f"shorts:[{youtube_short_id}]")]
                 ])
 
-                await update.message.reply_video(
-                    video=video_path,
-                    thumbnail=thumbnail_url,
-                    protect_content=True,
-                    caption=caption,
-                    has_spoiler=True,
-                    reply_markup=keyboard,
-                )
-            
                 try:
                     # attempt DB persist before file removal
                     try:
@@ -367,6 +366,7 @@ class YOUTUBE_HANDLER:
                         await query.answer("❌ Failed to update message.")
 
         else:
+
             title = f"YouTube {quality}"
             download_url = f"https://www.youtube.com/watch?v={youtube_id}"
 

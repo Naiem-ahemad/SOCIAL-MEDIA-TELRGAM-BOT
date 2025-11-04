@@ -21,7 +21,7 @@ class GENERIC_HANDLER:
         
         url = update.message.text.strip()
 
-        if not is_generic_url(url):
+        if not is_generic_url(url) or "https://" not in url or "t.me" in url or "telegram.me" in url:
             return
 
         print(url)

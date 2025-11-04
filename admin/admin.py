@@ -115,12 +115,15 @@ async def handle_broadcast(update, context):
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    
     context.user_data["temp_msgs"].append(sent.message_id)
+
 async def ai_edit_broadcast(update, context):
     query = update.callback_query
     await query.answer("🧠 Rewriting with AI...")
     original_text = context.user_data.get("original_text")
-
+    button_data = context.user_data.get("button_data")  # optional
+    
     prompt = f"""
     You are an expert copywriter and social media communication strategist. 
     Your task is to **rewrite and enhance** the following Telegram broadcast message.
@@ -155,12 +158,14 @@ async def ai_edit_broadcast(update, context):
     improved = response.text.strip()
 
     context.user_data["ai_text"] = improved
+    
     keyboard = [
         [
             InlineKeyboardButton("✅ Send", callback_data="ai_send"),
             InlineKeyboardButton("♻️ Re-edit", callback_data="ai_edit")
         ]
     ]
+
     msg = await query.message.edit_text(
         f"🤖 <b>AI-Edited Version:</b>\n\n{improved}",
         parse_mode="HTML",
@@ -179,7 +184,7 @@ async def ai_send_broadcast(update, context, use_ai=False):
 
     for u in users:
         try:
-            await context.bot.send_message(chat_id=u["id"], text=msg_text)
+            await context.bot.send_message(chat_id=u["id"], text=msg_text , parse_mode="HTML")
             sent += 1
         except:
             failed += 1
