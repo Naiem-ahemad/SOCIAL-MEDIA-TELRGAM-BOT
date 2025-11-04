@@ -9,10 +9,10 @@ import hashlib
 cookies_manager = CookieManager()
 cookies_path = cookies_manager.get_youtube_cookie()
 
-if cookies_path.name == "yt1.txt":
-    cookies_path = cookies_path.with_name("yt.txt")
+if cookies_path == "yt1.txt":
+    cookies_path = "yt.txt"
 
-if not cookies_path.exists():
+if not cookies_path:
     cookies_path = cookies_manager.get_youtube_cookie()
 
 def fetch_youtube_metadata(video_url_or_id, cookies_path=cookies_path):
