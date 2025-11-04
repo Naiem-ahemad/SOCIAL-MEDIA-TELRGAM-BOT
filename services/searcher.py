@@ -99,7 +99,7 @@ async def inline_search(update, context):
         logger.warning("⚠️ Empty query", platform=platform)
         return
 
-    videos = youtube_search_stable(query, limit=10)
+    videos = youtube_search_stable(query, limit=50)
     if not videos:
         logger.warning("⚠️ No results to send back to Telegram", platform=platform)
         return

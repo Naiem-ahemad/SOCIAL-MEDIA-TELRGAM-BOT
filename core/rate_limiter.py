@@ -14,7 +14,7 @@ load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-DEFAULT_BURST_LIMIT = 12
+DEFAULT_BURST_LIMIT = 5
 DEFAULT_BURST_WINDOW = 10
 DEFAULT_SUSTAINED_LIMIT = 80
 DEFAULT_SUSTAINED_WINDOW = 60
@@ -126,7 +126,7 @@ class RateLimiter:
                 await asyncio.to_thread(db.ban_user, user_id, reason, self.ban_hours)
                 logger.warning(f"Auto-banned {user_id}: {reason}", platform="RATE_LIMIT")
                 return False, reason
-
+                
         return True, None
 
 # module-level shared instance

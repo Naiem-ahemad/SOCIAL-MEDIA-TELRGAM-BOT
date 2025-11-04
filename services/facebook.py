@@ -44,6 +44,7 @@ class FACEBOOK_HANDLER:
     @staticmethod
     @run_in_background
     async def handle_facebook_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
         url = update.message.text.strip()
         
         if not is_facebook_url(url):
@@ -79,7 +80,7 @@ class FACEBOOK_HANDLER:
                 try:
                     media_id = cached.get("id") if isinstance(cached.get("id"), int) else (cached.get("id") if cached.get("id") else None)
                     if media_id:
-                        await asyncio.to_thread(db.add_download, user_id, media_id, "cached")
+                        await asyncio.to_thread(db.add_media, user_id, media_id, "cached")
                         await asyncio.to_thread(db.increment_download_count, user_id)
                 except Exception:
                     logger.warning("Failed to record cached download", platform=platform)
@@ -103,6 +104,7 @@ class FACEBOOK_HANDLER:
                 logger.debug("Detected reel/video URL", platform=platform)
                 # VIDEO
                 data = facebook_reel_extracter(url)
+                logger.debug(f"facebook_reel_extracter returned: {data}", platform=platform)
                 if not data or not data.get("data"):
                     await status_msg.edit_text("⚠️ No available formats. The reel may be private or restricted.")
                     return
@@ -129,10 +131,13 @@ class FACEBOOK_HANDLER:
 
                     title = media_data.get("title", None)
                     description = media_data.get("description", None)
-
+                    if not description:
+                        description = "No description available."
+                    else:
+                        description = description[:1024]
                     caption = (
                         f"{title}\n\n"
-                        f"📜 Description (original):\n{description[:1024]}\n\n\n"
+                        f"📜 Description (original):\n{description}\n\n\n"
                         "⚠️ Note: The above description and any links were written by the original post author — "
                         "we do not endorse or add any external content."
                     )

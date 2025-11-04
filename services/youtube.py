@@ -1,5 +1,5 @@
 import os , re
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update , InputMediaVideo
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update , InputMediaVideo , InputMediaAudio
 from telegram.ext import ContextTypes
 from core.utils import run_in_background
 from core.utils import logger
@@ -261,9 +261,9 @@ class YOUTUBE_HANDLER:
     @staticmethod
     @run_in_background
     async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
+        
         query = update.callback_query
-        short_id = data = query.data
+        short_id = query.data
         chat_id = update.callback_query.message.chat_id
 
         if short_id.startswith("shorts:"):
@@ -284,76 +284,155 @@ class YOUTUBE_HANDLER:
                     logger.warning(f"Failed to remove temp audio {audio_path}: {e}" , platform)
             else:
                 await context.bot.send_message(chat_id, "❌ Failed to extract audio.")
+        
+        
+        match = re.match(r'^(vid|aud)\[(.+?)\]\[(.{11})]$', query.data)
+        logger.debug(f"Match found: {match}", platform=platform)
+        thumb_id = None
 
-        match = re.match(r"vid\[(.+?)\]\[(.+?)\]", data)
+        if query.message.photo:
+            thumb_id = query.message.photo[-1].file_id  # highest resolution
+        logger.debug(f"Thumbnail ID: {thumb_id}", platform=platform)
+
         if not match:
             await query.answer("Invalid selection")
             return
+        
+        type_, quality, youtube_id = match.groups()
+        title = query.message.caption or "YouTube Media"
+        logger.debug(f"Title: {title}", platform=platform)
 
-        quality, youtube_id = match.groups()
-        title = f"YouTube {quality}"
-        download_url = f"https://www.youtube.com/watch?v={youtube_id}"
+        if type_ == "aud":
+            quality = "audio"   
+            title = f"{title}--{quality}"  # default placeholder
+            download_url = f"https://www.youtube.com/watch?v={youtube_id}"
+            await query.answer("Downloading audio...")
+            msg = await query.edit_message_caption(
+                caption=f"📥 <b>Downloading audio...</b>\n\n{make_progress_bar(0)}",
+                parse_mode="HTML",
+            )
 
-        await query.answer(f"Downloading {quality}...")
-
-        msg = await query.edit_message_caption(
-            caption=f"📥 <b>Downloading...</b>\n\n{make_progress_bar(0)}",
-            parse_mode="HTML",
-        )
-
-        # Stream progress from downloader/uploader
-        async for status in await upload_to_telegram_youtube(
-            url=download_url,
-            quality=quality,
-        ):
-            total = status.get("total", 0)
-            logger.debug(f"upload progress total: {total}", platform=platform)
-            try:
-                # Downloading phase (0-50%)
-                if total < 50:
-                    bar = make_progress_bar(total * 2)
-                    await msg.edit_caption(
-                        caption=f"📥 <b>Downloading...</b>\n\n{bar}",
-                        parse_mode="HTML",
-                    )
-                
-                # Uploading phase (50-100%)
-                elif total < 100:
-                    bar = make_progress_bar((total - 50) * 2)
-                    await msg.edit_caption(
-                        caption=f"🚀 <b>Uploading...</b>\n\n{bar}",
-                        parse_mode="HTML",
-                    )
-                
-                # Completed
-                elif "file_id" in status:
-                    caption = f"🎬 <b>{title}</b>\n\n"
-                
-                    await query.edit_message_media(
-                        media=InputMediaVideo(
-                            media=status["file_id"],
-                            caption=caption,
+            # Stream progress from downloader/uploader
+            async for status in await upload_to_telegram_youtube(
+                url=download_url,
+                quality=quality,
+                thumb_id=thumb_id,
+            ):
+                total = status.get("total", 0)
+                upload = status.get("upload", 0)
+                logger.debug(f"upload progress total: {total}", platform=platform)
+                try:
+                    # Downloading phase (0-50%)
+                    if total < 50:
+                        bar = make_progress_bar(total * 2)
+                        await msg.edit_caption(
+                            caption=f"📥 <b>Downloading audio...</b>\n\n{bar}",
                             parse_mode="HTML",
                         )
-                    )
-                    # persist media record after upload finished
-                    try:
-                        user_cb = query.from_user
-                        cb_user_id = getattr(user_cb, 'id', None)
-                        file_id = status.get('file_id')
-                        meta = {"title": title, "caption": caption}
-                        await asyncio.to_thread(db.add_media, platform, download_url, file_id, query.message.message_id, cb_user_id, title, None, meta)
-                        media = await asyncio.to_thread(db.get_media_by_url, download_url)
+                    
+                    # Uploading phase (50-100%)
+                    elif upload < 100:
+                        bar = make_progress_bar((upload))
+                        await msg.edit_caption(
+                            caption=f"🚀 <b>Uploading audio...</b>\n\n{bar}",
+                            parse_mode="HTML",
+                        )
+                        logger.debug(f"status: {status}" , platform=platform)
+                    # Completed
+                    logger.debug(f"Final status: {status}" , platform=platform)
+                    if "file_id" in status and status["file_id"]:
+                        caption = f"🎵 <b>{title} - Audio</b>\n\n"
                         try:
-                            m_id = media.get('id') if isinstance(media, dict) else media
-                            if m_id:
-                                await asyncio.to_thread(db.add_download, cb_user_id, m_id, 'completed')
-                                await asyncio.to_thread(db.increment_download_count, cb_user_id)
-                        except Exception:
-                            pass
-                    except Exception as e:
-                        logger.warning(f"db write failed after youtube upload finish: {e}", platform=platform)
+                            await query.edit_message_media(
+                                InputMediaAudio(
+                                    media=status["file_id"],
+                                    caption=caption,
+                                    parse_mode="HTML",
+                                    thumbnail=thumb_id,
+                                )
+                            )
+                        except Exception as e:
+                            # fallback if message cannot be edited
+                            await query.message.reply_audio(
+                                audio=status["file_id"],
+                                caption=caption,
+                                thumbnail=thumb_id,
+                                parse_mode="HTML",
+                            )
+                            logger.warning(f"⚠️ edit_message_media failed: {e}")
+                    db.add_media(platform=platform, url=download_url, file_id=status["file_id"], message_id=query.message.message_id, user_id=query.from_user.id, title=title, thumb_id=thumb_id, meta={"title": title, "caption": caption})
+                except Exception as e:
+                    if "message is not modified" not in str(e).lower():
+                        logger.debug(f"UI update error: {e}" , platform=platform)
+                        await query.answer("❌ Failed to update message.")
 
-            except Exception as e:
-                if "message is not modified" not in str(e).lower():
-                    logger.debug(f"UI update error: {e}" , platform)
+        else:
+            title = f"YouTube {quality}"
+            download_url = f"https://www.youtube.com/watch?v={youtube_id}"
+
+            await query.answer(f"Downloading {quality}...")
+
+            msg = await query.edit_message_caption(
+                caption=f"📥 <b>Downloading...</b>\n\n{make_progress_bar(0)}",
+                parse_mode="HTML",
+            )
+
+            # Stream progress from downloader/uploader
+            async for status in await upload_to_telegram_youtube(
+                url=download_url,
+                quality=quality,
+            ):
+                
+                total = status.get("total", 0)
+                upload = status.get("upload", 0)
+                logger.debug(f"upload progress total: {total}", platform=platform)
+                try:
+                    logger.debug(f"Status update: {status}", platform=platform)
+                    # Downloading phase (0-50%)
+                    if total < 50:
+                        bar = make_progress_bar(total * 2)
+                        await msg.edit_caption(
+                            caption=f"📥 <b>Downloading...</b>\n\n{bar}",
+                            parse_mode="HTML",
+                        )
+                    
+                    # Uploading phase (50-100%)
+                    elif total < 100:
+                        bar = make_progress_bar((upload))
+                        await msg.edit_caption(
+                            caption=f"🚀 <b>Uploading...</b>\n\n{bar}",
+                            parse_mode="HTML",
+                        )
+                    
+                    # Completed
+                    elif "file_id" in status:
+                        caption = f"🎬 <b>{title}</b>\n\n"
+                    
+                        await query.edit_message_media(
+                            media=InputMediaVideo(
+                                media=status["file_id"],
+                                caption=caption,
+                                parse_mode="HTML",
+                            )
+                        )
+                        # persist media record after upload finished
+                        try:
+                            user_cb = query.from_user
+                            cb_user_id = getattr(user_cb, 'id', None)
+                            file_id = status.get('file_id')
+                            meta = {"title": title, "caption": caption}
+                            await asyncio.to_thread(db.add_media, platform, download_url, file_id, query.message.message_id, cb_user_id, title, None, meta)
+                            media = await asyncio.to_thread(db.get_media_by_url, download_url)
+                            try:
+                                m_id = media.get('id') if isinstance(media, dict) else media
+                                if m_id:
+                                    await asyncio.to_thread(db.add_download, cb_user_id, m_id, 'completed')
+                                    await asyncio.to_thread(db.increment_download_count, cb_user_id)
+                            except Exception:
+                                pass
+                        except Exception as e:
+                            logger.warning(f"db write failed after youtube upload finish: {e}", platform=platform)
+
+                except Exception as e:
+                    if "message is not modified" not in str(e).lower():
+                        logger.debug(f"UI update error: {e}" , platform=platform)

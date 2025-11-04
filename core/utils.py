@@ -65,6 +65,32 @@ def run_in_background(func):
     return wrapper
 
 
+def normalize_url(url: str) -> str:
+    """Normalize URLs for consistent DB keys.
+
+    - remove common tracking query params (utm_*, fbclid, gclid)
+    - sort remaining query params
+    - remove trailing slash from path
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+        scheme = parsed.scheme.lower() if parsed.scheme else "https"
+        netloc = parsed.netloc.lower()
+        path = parsed.path.rstrip('/')
+
+        # parse and filter query params
+        qs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+        filtered = [(k, v) for k, v in qs if not (k.startswith('utm_') or k in ('fbclid', 'gclid', 'mc_cid', 'mc_eid'))]
+        # sort params for normalization
+        filtered.sort()
+        new_query = urllib.parse.urlencode(filtered, doseq=True)
+
+        normalized = urllib.parse.urlunparse((scheme, netloc, path, '', new_query, ''))
+        return normalized
+    except Exception:
+        return url
+
+
 class Database:
     _instance = None
 
@@ -169,13 +195,15 @@ class Database:
 
     # -------- MEDIA -------- #
     def add_media(self, platform, url, file_id, msg_id, user_id, title=None, duration=None, metadata=None):
+        # normalize URL before storing to keep cache keys consistent
+        norm_url = normalize_url(url) if url else url
         now = datetime.now().isoformat()
         meta_json = json.dumps(metadata or {}, ensure_ascii=False)
 
         self.cur.execute("""
             INSERT INTO media (platform, url, file_id, msg_id, user_id, title, duration, metadata, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (platform, url, file_id, msg_id, user_id, title, duration, meta_json, now))
+        """, (platform, norm_url, file_id, msg_id, user_id, title, duration, meta_json, now))
         self.conn.commit()
         return self.cur.lastrowid
 
@@ -195,10 +223,27 @@ class Database:
     
     def get_media_by_url(self, url):
         """Fetch media by URL"""
-        self.cur.execute("SELECT * FROM media WHERE url=?", (url,))
+        if not url:
+            return None
+
+        norm_url = normalize_url(url)
+
+        # Try exact normalized match first
+        self.cur.execute("SELECT * FROM media WHERE url=? ORDER BY id DESC", (norm_url,))
         row = self.cur.fetchone()
         if not row:
+            # Fallback: try matching by base path (ignore query params)
+            try:
+                parsed = urllib.parse.urlparse(norm_url)
+                base = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+                like_pattern = f"{base}%"
+                self.cur.execute("SELECT * FROM media WHERE url LIKE ? ORDER BY id DESC", (like_pattern,))
+                row = self.cur.fetchone()
+            except Exception:
+                return None
+        if not row:
             return None
+
         cols = [c[0] for c in self.cur.description]
         data = dict(zip(cols, row))
         if data.get("metadata"):
@@ -395,7 +440,7 @@ class CookieManager:
             base_path = "./cookies"
         else:  # Linux/Ubuntu
             base_path = "/home/ubuntu/tg-bot/bot/cookies"
-
+        
         # Define all cookie paths you expect
         self.cookie_files = {
             "facebook": os.path.join(base_path, "fb.txt"),

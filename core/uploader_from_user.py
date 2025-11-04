@@ -1,5 +1,6 @@
 import os , asyncio , re , threading
 import aiohttp
+from io import BytesIO
 import subprocess
 from pyrogram import Client
 from tempfile import NamedTemporaryFile
@@ -93,9 +94,26 @@ async def stop_bot():
 
 ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 
-progress_lock = threading.Lock()
+async def get_youtube_thumb(youtube_input: str) -> BytesIO | None:
+    # Extract video ID from full URL or use as-is if already an ID
+    match = re.search(r"(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})", youtube_input)
+    video_id = match.group(1) if match else youtube_input.strip()
 
-async def upload_to_telegram_youtube(url, quality=None):
+    urls = [
+        f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg",
+        f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+    ]
+
+    async with aiohttp.ClientSession() as session:
+        for url in urls:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    img_bytes = BytesIO(await resp.read())
+                    img_bytes.name = "thumb.jpg"
+                    return img_bytes
+    return None
+
+async def upload_to_telegram_youtube(url, quality=None, thumb_id=None):
     """Download YouTube video → upload to Telegram with live progress."""
     await start_bot()
     progress = {"download": 0, "upload": 0}
@@ -103,7 +121,6 @@ async def upload_to_telegram_youtube(url, quality=None):
     upload_done = asyncio.Event()
     tmp_path_holder = {"path": None}
     loop = asyncio.get_running_loop()
-
 
     # --- Progress Update Helper ---
     async def _update_progress(key, value):
@@ -138,17 +155,28 @@ async def upload_to_telegram_youtube(url, quality=None):
 
     # --- Download Function (threaded) ---
     def _download():
-        q = quality.replace("p", "")
 
-        ydl_opts = {
-            "format": f"bestvideo[height={q}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height={q}]+bestaudio/best",
-            "merge_output_format": "mp4",
-            "outtmpl": "./temp/%(id)s.%(ext)s",
-            "quiet": True,
-            "no_warnings": True,
-            "progress_hooks": [download_hook],
-            "cookiefile":cookies_manager.get_youtube_cookie()
-        }
+        q = quality.replace("p", "")
+        if quality == "audio":
+            ydl_opts = {
+                "format": "bestaudio[ext=m4a]/bestaudio[ext=mp3]",
+                "outtmpl": "./temp/%(title)s",
+                "quiet": True,
+                "no_warnings": True,
+                "progress_hooks": [download_hook],
+                "cookiefile": cookies_manager.get_youtube_cookie(),
+            }
+            
+        else:
+            ydl_opts = {
+                "format": f"bestvideo[height={q}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height={q}]+bestaudio/best",
+                "merge_output_format": "mp4",
+                "outtmpl": "./temp/%(title)s.%(ext)s",
+                "quiet": True,
+                "no_warnings": True,
+                "progress_hooks": [download_hook],
+                "cookiefile":cookies_manager.get_youtube_cookie()
+            }
 
         try:
             with YoutubeDL(ydl_opts) as ydl:
@@ -193,31 +221,46 @@ async def upload_to_telegram_youtube(url, quality=None):
 
         logger.debug(f"✅ Temp Path: {tmp_path}")
 
+        if quality == "audio":
+            logger.debug("🎵 Uploading as audio")
+        else:
+            width, height = get_video_dimensions(tmp_path)
+            print(width , height)
+            if height < 360 or width < 640:
+                aspect_ratio = width / height if height != 0 else 1
+                new_width = 720
+                new_height = int(new_width / aspect_ratio)
+                width, height = new_width, new_height
+            logger.debug(f"🎬 Uploading as video ({width}x{height})")
 
-        width, height = get_video_dimensions(tmp_path)
-        print(width , height)
-        if height < 360 or width < 640:
-            aspect_ratio = width / height if height != 0 else 1
-            new_width = 720
-            new_height = int(new_width / aspect_ratio)
-            width, height = new_width, new_height
-        
         try:
             await app.get_chat(CHANNEL)
         except Exception as e:
             logger.warning(f"Cannot meet channel: {e}")
         
         # --- Upload phase ---
-        send_task = asyncio.create_task(
-            app.send_video(
-                chat_id=CHANNEL,
-                video=tmp_path,
-                width=width,
-                height=height,
-                supports_streaming=True,
-                progress=upload_progress,
+        if quality == "audio":
+            send_task = asyncio.create_task(
+                app.send_audio(
+                    chat_id=CHANNEL,
+                    audio=tmp_path,
+                    thumb=await get_youtube_thumb(url),
+                    progress=upload_progress,
+                )
             )
-        )
+
+        else:
+
+            send_task = asyncio.create_task(
+                app.send_video(
+                    chat_id=CHANNEL,
+                    video=tmp_path,
+                    width=width,
+                    height=height,
+                    supports_streaming=True,
+                    progress=upload_progress,
+                )
+            )
 
         # Track while uploading
         while not upload_done.is_set():
@@ -229,7 +272,25 @@ async def upload_to_telegram_youtube(url, quality=None):
             await asyncio.sleep(0.5)
 
         sent = await send_task
-        yield {"total": 100, "download": 50, "upload": 100, "file_id": sent.video.file_id}
+
+        try:
+            logger.debug(f"📩 Sent message: {sent.dict()}")
+        except Exception:
+            logger.debug(f"📩 Sent message object: {sent}")
+        
+        file_id = (
+            getattr(sent.audio, "file_id", None)
+            or getattr(sent.video, "file_id", None)
+            or getattr(sent.document, "file_id", None)
+            or getattr(sent.voice, "file_id", None)
+        )
+
+        if not file_id:
+            logger.warning("⚠️ No file_id found in sent message!")
+
+        logger.debug(f"✅ Sent media. File ID: {file_id}")
+        yield {"total": 100, "download": 50, "upload": 100, "file_id": file_id}
+
 
         # Cleanup
         try:
